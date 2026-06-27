@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1f3c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Strefa Ulic</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1124;
+    --surface:   #1a1f3c;
+    --surface2:  #232847;
+    --border:    #2e3460;
+    --accent:    #4f7fff;
+    --accent2:   #7c5cfc;
+    --success:   #22d3a5;
+    --warn:      #f59e42;
+    --danger:    #f04c6a;
+    --text:      #e8eaf6;
+    --muted:     #7b80a8;
+    --radius:    18px;
+    --radius-sm: 10px;
+  }
+
+  html, body {
+    height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+
+  .app {
+    min-height: 100vh; display: flex; flex-direction: column;
+    max-width: 480px; margin: 0 auto; padding: 0 16px 32px;
+  }
+
+  /* HEADER */
+  header {
+    padding: 28px 0 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-mark {
+    width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .logo-text h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .logo-text p { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 14px;
+  }
+  .card-label {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin-bottom: 12px; font-weight: 600;
+  }
+
+  /* FILE UPLOAD */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius-sm);
+    padding: 24px 16px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent); background: rgba(79,127,255,0.05);
+  }
+  .upload-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-icon { font-size: 2rem; margin-bottom: 8px; }
+  .upload-zone p { font-size: 0.85rem; color: var(--muted); }
+  .upload-zone strong { color: var(--text); }
+
+  .db-status {
+    display: flex; align-items: center; gap: 10px; margin-top: 14px;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    background: var(--surface2); font-size: 0.82rem;
+  }
+  .db-status .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--muted);
+  }
+  .db-status.loaded .dot { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .db-status .count { margin-left: auto; color: var(--muted); font-size: 0.75rem; }
+
+  .format-hint {
+    margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-sm);
+    background: rgba(79,127,255,0.06); border: 1px solid rgba(79,127,255,0.15);
+    font-size: 0.75rem; color: var(--muted); line-height: 1.6;
+  }
+  .format-hint code {
+    background: var(--surface2); padding: 1px 5px; border-radius: 4px;
+    color: var(--accent); font-size: 0.72rem;
+  }
+
+  /* COLUMNS MAP */
+  .col-map { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .col-row {
+    display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
+  }
+  .col-row label { color: var(--muted); width: 72px; flex-shrink: 0; }
+  .col-row select {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: var(--radius-sm); padding: 6px 10px;
+    font-size: 0.8rem; appearance: none; cursor: pointer;
+  }
+  .col-row select:focus { outline: none; border-color: var(--accent); }
+
+  /* MIC BUTTON */
+  .mic-section { display: flex; flex-direction: column; align-items: center; padding: 8px 0; }
+  .mic-btn {
+    width: 88px; height: 88px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.2rem; box-shadow: 0 0 0 0 rgba(79,127,255,0.4);
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent; position: relative; overflow: hidden;
+  }
+  .mic-btn:active { transform: scale(0.94); }
+  .mic-btn.listening {
+    animation: pulse 1.4s ease-in-out infinite;
+    box-shadow: 0 0 0 12px rgba(79,127,255,0.15);
+  }
+  .mic-btn.disabled {
+    background: var(--surface2); box-shadow: none; cursor: not-allowed; opacity: 0.5;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(79,127,255,0.5); }
+    70%  { box-shadow: 0 0 0 20px rgba(79,127,255,0); }
+    100% { box-shadow: 0 0 0 0   rgba(79,127,255,0); }
+  }
+  .mic-hint {
+    margin-top: 12px; font-size: 0.78rem; color: var(--muted); text-align: center;
+    min-height: 20px; transition: color 0.2s;
+  }
+  .mic-hint.active { color: var(--accent); }
+
+  /* TRANSCRIPT */
+  .transcript-box {
+    min-height: 52px; padding: 14px 16px;
+    background: var(--surface2); border-radius: var(--radius-sm);
+    font-size: 1rem; font-style: italic; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    border: 1px solid var(--border); transition: border-color 0.2s;
+    word-break: break-word;
+  }
+  .transcript-box.has-text { color: var(--text); font-style: normal; border-color: var(--accent); }
+
+  /* RESULT */
+  .result-card {
+    border-radius: var(--radius); padding: 20px;
+    display: none; margin-bottom: 14px;
+    position: relative; overflow: hidden;
+  }
+  .result-card.found {
+    display: block;
+    background: linear-gradient(135deg, rgba(34,211,165,0.12), rgba(79,127,255,0.08));
+    border: 1px solid rgba(34,211,165,0.3);
+  }
+  .result-card.not-found {
+    display: block;
+    background: rgba(240,76,106,0.08);
+    border: 1px solid rgba(240,76,106,0.25);
+  }
+  .result-card .result-label {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin-bottom: 6px; font-weight: 600;
+  }
+  .result-card .street-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.05rem; font-weight: 500; margin-bottom: 4px;
+  }
+  .result-card .region-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem; font-weight: 700; color: var(--success);
+    letter-spacing: -0.01em;
+  }
+  .result-card.not-found .region-name { color: var(--danger); font-size: 1rem; font-weight: 500; }
+
+  /* SPEAK BTN */
+  .speak-btn {
+    margin-top: 12px; display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(34,211,165,0.15); border: 1px solid rgba(34,211,165,0.3);
+    color: var(--success); border-radius: 100px; padding: 7px 14px;
+    font-size: 0.78rem; font-weight: 500; cursor: pointer;
+    transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  .speak-btn:hover { background: rgba(34,211,165,0.25); }
+
+  /* MANUAL SEARCH */
+  .search-row {
+    display: flex; gap: 8px;
+  }
+  .search-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: var(--radius-sm); padding: 11px 14px;
+    font-size: 0.9rem; font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { outline: none; border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+  .search-btn {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: var(--radius-sm); padding: 11px 16px;
+    font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    transition: opacity 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  .search-btn:hover { opacity: 0.85; }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 20px; border-radius: 100px; font-size: 0.82rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4); transition: transform 0.3s ease;
+    white-space: nowrap; z-index: 999;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* DIVIDER */
+  .divider {
+    display: flex; align-items: center; gap: 10px; margin: 4px 0;
+    font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* FUZZY SUGGESTIONS */
+  .suggestions { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .suggestion-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; background: var(--surface2); border-radius: var(--radius-sm);
+    border: 1px solid var(--border); cursor: pointer; transition: border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .suggestion-item:hover { border-color: var(--accent); }
+  .suggestion-item .s-street { font-size: 0.85rem; }
+  .suggestion-item .s-region { font-size: 0.75rem; color: var(--accent); font-weight: 500; }
+
+  /* LANG SELECTOR */
+  .lang-row {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.8rem; color: var(--muted); margin-bottom: 12px;
+  }
+  .lang-select {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    border-radius: var(--radius-sm); padding: 5px 10px; font-size: 0.78rem;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo-mark">🗺️</div>
+    <div class="logo-text">
+      <h1>Strefa Ulic</h1>
+      <p>Rozpoznawanie głosowe · Wyszukiwanie regionów</p>
+    </div>
+  </header>
+
+  <!-- FILE UPLOAD -->
+  <div class="card">
+    <div class="card-label">1 · Baza danych</div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      <div class="upload-icon">📂</div>
+      <p><strong>Wgraj plik CSV lub Excel</strong></p>
+      <p>kliknij lub przeciągnij plik tutaj</p>
+    </div>
+
+    <div class="format-hint">
+      Wymagane kolumny: <code>ulica</code> i <code>region</code><br>
+      Możesz też wybrać kolumny ręcznie poniżej po wgraniu pliku.
+    </div>
+
+    <div class="col-map" id="colMap" style="display:none;">
+      <div class="col-row">
+        <label>Ulica:</label>
+        <select id="colStreet"></select>
+      </div>
+      <div class="col-row">
+        <label>Region:</label>
+        <select id="colRegion"></select>
+      </div>
+    </div>
+
+    <div class="db-status" id="dbStatus">
+      <div class="dot"></div>
+      <span id="dbStatusText">Brak danych — wgraj plik</span>
+      <span class="count" id="dbCount"></span>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="result-card" id="resultCard">
+    <div class="result-label" id="resultLabel"></div>
+    <div class="street-name" id="resultStreet"></div>
+    <div class="region-name" id="resultRegion"></div>
+    <button class="speak-btn" id="speakBtn" onclick="speakResult()" style="display:none;">
+      🔊 Odczytaj ponownie
+    </button>
+    <div class="suggestions" id="suggestions"></div>
+  </div>
+
+  <!-- VOICE -->
+  <div class="card">
+    <div class="card-label">2 · Rozpoznawanie głosowe</div>
+    <div class="lang-row">
+      <span>Język rozpoznawania:</span>
+      <select class="lang-select" id="langSelect">
+        <option value="pl-PL">🇵🇱 Polski</option>
+        <option value="en-US">🇺🇸 English</option>
+        <option value="uk-UA">🇺🇦 Українська</option>
+        <option value="de-DE">🇩🇪 Deutsch</option>
+      </select>
+    </div>
+    <div class="mic-section">
+      <button class="mic-btn disabled" id="micBtn" onclick="toggleListening()">🎤</button>
+      <div class="mic-hint" id="micHint">Wgraj bazę danych, aby odblokować mikrofon</div>
+    </div>
+    <div class="transcript-box" id="transcript">Wypowiedz nazwę ulicy…</div>
+  </div>
+
+  <!-- MANUAL SEARCH -->
+  <div class="card">
+    <div class="card-label">3 · Szukaj ręcznie</div>
+    <div class="search-row">
+      <input class="search-input" id="manualInput" type="text" placeholder="np. Kwiatowa, Mickiewicza…">
+      <button class="search-btn" onclick="manualSearch()">Szukaj</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let db = [];          // [{street: string, region: string}, ...]
+let headers = [];     // raw column names from file
+let lastResult = '';  // for re-speak
+let recognition = null;
+let isListening = false;
+
+// ─── FILE HANDLING ───────────────────────────────────────────────────────────
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0]; if (f) processFile(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+function processFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      let rows = [];
+      if (ext === 'csv') {
+        rows = parseCSV(ev.target.result);
+      } else {
+        const wb = XLSX.read(ev.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      }
+      if (rows.length < 2) { showToast('Plik jest pusty lub ma tylko nagłówek.'); return; }
+      headers = rows[0].map(h => String(h).trim());
+      renderColMap(headers, rows);
+    } catch(e) { showToast('Błąd odczytu pliku: ' + e.message); }
+  };
+  if (ext === 'csv') reader.readAsText(file, 'UTF-8');
+  else reader.readAsBinaryString(file);
+}
+
+function parseCSV(text) {
+  const delim = text.indexOf(';') > text.indexOf(',') ? ';' : ',';
+  return text.trim().split('\n').map(r => r.split(delim).map(c => c.replace(/^"|"$/g,'').trim()));
+}
+
+function renderColMap(hdrs, rows) {
+  const colMap = document.getElementById('colMap');
+  const selS = document.getElementById('colStreet');
+  const selR = document.getElementById('colRegion');
+  selS.innerHTML = ''; selR.innerHTML = '';
+  hdrs.forEach((h, i) => {
+    selS.innerHTML += `<option value="${i}">${h}</option>`;
+    selR.innerHTML += `<option value="${i}">${h}</option>`;
+  });
+  // auto-detect
+  const streetGuess = hdrs.findIndex(h => /ulica|street|nazwa|name/i.test(h));
+  const regionGuess = hdrs.findIndex(h => /region|strefa|zone|obszar|dzielnica/i.test(h));
+  if (streetGuess >= 0) selS.value = streetGuess;
+  if (regionGuess >= 0) selR.value = regionGuess;
+
+  colMap.style.display = 'flex';
+
+  const rebuildDB = () => {
+    const si = parseInt(selS.value), ri = parseInt(selR.value);
+    db = rows.slice(1)
+      .filter(r => r[si])
+      .map(r => ({ street: normalize(String(r[si] || '')), region: String(r[ri] || '').trim() }));
+    updateStatus();
+  };
+  selS.onchange = rebuildDB;
+  selR.onchange = rebuildDB;
+  rebuildDB();
+}
+
+function normalize(s) {
+  return s.trim()
+    .toLowerCase()
+    .replace(/\bul\.\s*/i,'')
+    .replace(/\bul\b/i,'')
+    .replace(/[ąćęłńóśźż]/g, c => ({ą:'a',ć:'c',ę:'e',ł:'l',ń:'n',ó:'o',ś:'s',ź:'z',ż:'z'}[c]||c))
+    .replace(/\s+/g,' ').trim();
+}
+
+function updateStatus() {
+  const el = document.getElementById('dbStatus');
+  const txt = document.getElementById('dbStatusText');
+  const cnt = document.getElementById('dbCount');
+  if (db.length > 0) {
+    el.classList.add('loaded');
+    txt.textContent = 'Baza załadowana';
+    cnt.textContent = db.length + ' ulic';
+    enableMic();
+  } else {
+    el.classList.remove('loaded');
+    txt.textContent = 'Brak danych';
+    cnt.textContent = '';
+  }
+}
+
+// ─── SEARCH ──────────────────────────────────────────────────────────────────
+function lookup(rawQuery) {
+  if (!rawQuery) return;
+  const q = normalize(rawQuery);
+  const transcriptEl = document.getElementById('transcript');
+  transcriptEl.textContent = rawQuery;
+  transcriptEl.classList.add('has-text');
+
+  // exact match
+  let match = db.find(r => r.street === q);
+
+  // contains match
+  if (!match) match = db.find(r => r.street.includes(q) || q.includes(r.street));
+
+  if (match) {
+    showFound(rawQuery, match.region);
+    speak(match.region);
+  } else {
+    const suggestions = fuzzySearch(q, 5);
+    showNotFound(rawQuery, suggestions);
+  }
+}
+
+function fuzzySearch(q, limit = 5) {
+  return db
+    .map(r => ({ ...r, score: similarity(q, r.street) }))
+    .filter(r => r.score > 0.3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+function similarity(a, b) {
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return 0.8;
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+  const editDist = levenshtein(longer, shorter);
+  return (longer.length - editDist) / longer.length;
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) => Array.from({length: n+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+// ─── DISPLAY ─────────────────────────────────────────────────────────────────
+function showFound(street, region) {
+  lastResult = region;
+  const card = document.getElementById('resultCard');
+  card.className = 'result-card found';
+  document.getElementById('resultLabel').textContent = '✅ Znaleziono';
+  document.getElementById('resultStreet').textContent = street;
+  document.getElementById('resultRegion').textContent = region;
+  document.getElementById('speakBtn').style.display = 'inline-flex';
+  document.getElementById('suggestions').innerHTML = '';
+}
+
+function showNotFound(street, suggestions) {
+  lastResult = '';
+  const card = document.getElementById('resultCard');
+  card.className = 'result-card not-found';
+  document.getElementById('resultLabel').textContent = '❌ Nie znaleziono';
+  document.getElementById('resultStreet').textContent = street;
+  document.getElementById('resultRegion').textContent = 'Ulica nieznana w bazie danych';
+  document.getElementById('speakBtn').style.display = 'none';
+
+  const sugg = document.getElementById('suggestions');
+  if (suggestions.length > 0) {
+    sugg.innerHTML = '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:4px;">Może chodziło o:</div>' +
+      suggestions.map(s =>
+        `<div class="suggestion-item" onclick="selectSuggestion('${s.street.replace(/'/g,"\\'")}','${s.region.replace(/'/g,"\\'")}')">
+          <span class="s-street">${s.street}</span>
+          <span class="s-region">${s.region}</span>
+        </div>`
+      ).join('');
+  } else {
+    sugg.innerHTML = '';
+  }
+}
+
+function selectSuggestion(street, region) {
+  document.getElementById('transcript').textContent = street;
+  document.getElementById('transcript').classList.add('has-text');
+  showFound(street, region);
+  speak(region);
+}
+
+// ─── TTS ─────────────────────────────────────────────────────────────────────
+// Browsers require TTS to be triggered within a user gesture.
+// We unlock it by speaking a silent utterance the moment the mic button is clicked,
+// then queue the real result after STT finishes (no second gesture needed).
+let ttsUnlocked = false;
+
+function unlockTTS() {
+  if (ttsUnlocked || !window.speechSynthesis) return;
+  const silent = new SpeechSynthesisUtterance(' ');
+  silent.volume = 0;
+  silent.lang = 'pl-PL';
+  window.speechSynthesis.speak(silent);
+  ttsUnlocked = true;
+}
+
+function speak(text) {
+  if (!window.speechSynthesis) { showToast('TTS niedostępny w tej przeglądarce'); return; }
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = 'pl-PL'; utt.rate = 0.9; utt.pitch = 1; utt.volume = 1;
+  const voices = speechSynthesis.getVoices();
+  const plVoice = voices.find(v => v.lang === 'pl-PL') || voices.find(v => v.lang.startsWith('pl'));
+  if (plVoice) utt.voice = plVoice;
+  window.speechSynthesis.speak(utt);
+}
+
+function speakResult() { if (lastResult) speak(lastResult); }
+
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => {};
+
+// ─── STT ─────────────────────────────────────────────────────────────────────
+function enableMic() {
+  const btn = document.getElementById('micBtn');
+  btn.classList.remove('disabled');
+  document.getElementById('micHint').textContent = 'Naciśnij i wypowiedz nazwę ulicy';
+}
+
+function toggleListening() {
+  if (db.length === 0) { showToast('Najpierw wgraj bazę danych'); return; }
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    showToast('Rozpoznawanie mowy niedostępne — użyj Chrome na Androidzie');
+    return;
+  }
+  // Unlock TTS here — inside user gesture (click/tap)
+  unlockTTS();
+  if (isListening) stopListening();
+  else startListening();
+}
+
+function startListening() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = document.getElementById('langSelect').value;
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  recognition.maxAlternatives = 3;
+
+  const btn = document.getElementById('micBtn');
+  const hint = document.getElementById('micHint');
+  const box = document.getElementById('transcript');
+
+  recognition.onstart = () => {
+    isListening = true;
+    btn.classList.add('listening');
+    btn.textContent = '⏹';
+    hint.textContent = 'Słucham… mów teraz';
+    hint.classList.add('active');
+    box.textContent = '…';
+    box.classList.remove('has-text');
+  };
+
+  recognition.onresult = (e) => {
+    const interim = Array.from(e.results).map(r => r[0].transcript).join(' ');
+    box.textContent = interim;
+    box.classList.add('has-text');
+    if (e.results[e.results.length - 1].isFinal) {
+      const final = e.results[e.results.length - 1][0].transcript;
+      lookup(final);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    showToast('Błąd: ' + e.error);
+    stopListening();
+  };
+
+  recognition.onend = () => stopListening();
+
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  if (recognition) { try { recognition.stop(); } catch(e){} }
+  const btn = document.getElementById('micBtn');
+  const hint = document.getElementById('micHint');
+  btn.classList.remove('listening');
+  btn.textContent = '🎤';
+  hint.textContent = 'Naciśnij i wypowiedz nazwę ulicy';
+  hint.classList.remove('active');
+}
+
+// ─── MANUAL SEARCH ───────────────────────────────────────────────────────────
+function manualSearch() {
+  const val = document.getElementById('manualInput').value.trim();
+  if (!val) return;
+  if (db.length === 0) { showToast('Najpierw wgraj bazę danych'); return; }
+  unlockTTS();
+  lookup(val);
+}
+document.getElementById('manualInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') manualSearch();
+});
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
